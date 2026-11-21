@@ -204,6 +204,9 @@
         </div>
 
         <div class="flex flex-wrap gap-3 text-xs">
+          <span class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-rose-100 text-rose-800 font-semibold">
+            <span class="w-2.5 h-2.5 rounded-full bg-rose-600"></span> Sunday
+          </span>
           <span class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-amber-100 text-amber-800 font-semibold">
             <span class="w-2.5 h-2.5 rounded-full bg-amber-500"></span> Company Holiday
           </span>
@@ -212,8 +215,8 @@
           </span>
         </div>
 
-        <div class="grid grid-cols-7 gap-1 text-center text-[11px] font-bold text-gray-500 uppercase pt-1">
-          <div>Sun</div><div>Mon</div><div>Tue</div><div>Wed</div><div>Thu</div><div>Fri</div><div>Sat</div>
+        <div class="grid grid-cols-7 gap-1 text-center text-[11px] font-bold uppercase pt-1">
+          <div class="text-rose-600">Sun</div><div class="text-gray-500">Mon</div><div class="text-gray-500">Tue</div><div class="text-gray-500">Wed</div><div class="text-gray-500">Thu</div><div class="text-gray-500">Fri</div><div class="text-gray-500">Sat</div>
         </div>
         <div id="calendarGrid" class="grid grid-cols-7 gap-1.5 text-xs"></div>
       </div>
@@ -441,6 +444,26 @@
       }));
     }
 
+    function promptFirstTimePasswordChange(emp) {
+      setTimeout(() => {
+        const wantsChange = confirm(`Hello ${emp.name}! You are using the default password (1234).\nWould you like to set your new personal password now?`);
+        if (wantsChange) {
+          const newPass = prompt("Enter your new personal password (at least 4 characters):");
+          if (newPass && newPass.trim().length >= 4) {
+            const cleanPass = newPass.trim();
+            const matchingDocs = employees.filter(e => e.phone === emp.phone && e.firebaseId);
+            matchingDocs.forEach(docItem => {
+              db.collection("employees").doc(docItem.firebaseId).update({ password: cleanPass });
+            });
+            emp.password = cleanPass;
+            alert("✅ Password changed successfully!");
+          } else if (newPass !== null) {
+            alert("Password was not saved. Password must be at least 4 characters.");
+          }
+        }
+      }, 500);
+    }
+
     function initFirebaseSync() {
       db.collection("employees").onSnapshot(snapshot => {
         const rawEmps = snapshot.docs.map(doc => ({ ...doc.data(), firebaseId: doc.id }));
@@ -554,11 +577,18 @@
       const emp = employees.find(e => e.phone === cleanPhone);
       if (emp) {
         const passInput = prompt(`Enter Password for ${emp.name}:`);
-        if (passInput && passInput.trim() === (emp.password || "1234")) {
+        const enteredPass = passInput ? passInput.trim() : "";
+        const currentStoredPass = emp.password || "1234";
+
+        if (enteredPass === currentStoredPass) {
           currentUser = { type: 'employee', name: emp.name, phone: cleanPhone, empId: emp.id };
           saveDailySession(currentUser);
           applyLoginState(false);
           alert(`Successfully logged in as ${emp.name} for today!`);
+
+          if (currentStoredPass === "1234") {
+            promptFirstTimePasswordChange(emp);
+          }
         } else {
           alert("Incorrect password.");
         }
@@ -830,6 +860,10 @@
       }
 
       for (let day = 1; day <= totalDays; day++) {
+        const currentDateObj = new Date(year, month - 1, day);
+        const dayOfWeek = currentDateObj.getDay();
+        const isSunday = (dayOfWeek === 0);
+
         const dateStr = `${year}-${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
         const dayHolidays = holidays.filter(h => h.date === dateStr);
         const dayLeaves = relevantLeaves.filter(l => getLeaveDatesArray(l).includes(dateStr));
@@ -844,9 +878,27 @@
           return `<div class="bg-indigo-100 text-indigo-900 px-1.5 py-0.5 rounded text-[10px] font-medium truncate" title="${l.empName} - ${l.type} (${l.status})">🗓️ ${canSeeAllLeaves ? `${l.empName.split(' ')[0]} ` : ''}${shortType} (${l.status[0]})</div>`;
         }).join('');
 
+        let containerClass = "min-h-[78px] p-1.5 rounded-lg border flex flex-col gap-1 ";
+        if (isToday) {
+          containerClass += "border-indigo-500 bg-indigo-50/40";
+        } else if (isSunday) {
+          containerClass += "border-rose-200 bg-rose-50/50";
+        } else {
+          containerClass += "border-gray-200 bg-white";
+        }
+
+        let dayNumberClass = "text-[11px] font-bold ";
+        if (isSunday) {
+          dayNumberClass += "text-rose-600";
+        } else if (isToday) {
+          dayNumberClass += "text-indigo-700";
+        } else {
+          dayNumberClass += "text-gray-700";
+        }
+
         cells.push(`
-          <div class="min-h-[78px] p-1.5 rounded-lg border ${isToday ? 'border-indigo-500 bg-indigo-50/40' : 'border-gray-200 bg-white'} flex flex-col gap-1">
-            <div class="text-[11px] font-bold ${isToday ? 'text-indigo-700' : 'text-gray-700'}">${day}</div>
+          <div class="${containerClass}">
+            <div class="${dayNumberClass}">${day} ${isSunday ? '<span class="text-[9px] font-normal text-rose-500 float-right">Sun</span>' : ''}</div>
             ${holidayBadges}
             ${leaveBadges}
           </div>
