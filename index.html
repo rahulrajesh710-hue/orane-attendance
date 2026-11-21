@@ -1,0 +1,1101 @@
+﻿<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Orane Staff GeoAttendance & Payroll</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://unpkg.com/lucide@latest"></script>
+  <!-- Firebase SDKs -->
+  <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore-compat.js"></script>
+  <style>
+    body { background-color: #f3f4f6; font-family: system-ui, -apple-system, sans-serif; }
+  </style>
+</head>
+<body class="min-h-screen pb-10">
+
+  <!-- Header -->
+  <header class="bg-indigo-700 text-white p-4 shadow-lg sticky top-0 z-50">
+    <div class="max-w-4xl mx-auto flex justify-between items-center">
+      <div class="flex items-center space-x-2">
+        <i data-lucide="map-pin" class="w-6 h-6 text-yellow-300"></i>
+        <div>
+          <h1 class="text-xl font-bold leading-tight">Orane GeoAttendance</h1>
+          <p class="text-xs text-indigo-200">Shift: 9:45 AM – 6:15 PM (Late after 10:15 AM)</p>
+        </div>
+      </div>
+      <div class="flex items-center gap-2">
+        <button onclick="openLoginModal()" id="roleBadge" class="bg-indigo-900 text-xs px-3 py-1.5 rounded-full text-indigo-100 font-semibold border border-indigo-400">
+          🔒 Login Required
+        </button>
+        <button onclick="logoutSession()" id="logoutBtn" class="hidden bg-rose-800 text-xs px-2.5 py-1.5 rounded-full text-white font-semibold">
+          Logout
+        </button>
+      </div>
+    </div>
+  </header>
+
+  <!-- Main Container -->
+  <main class="max-w-4xl mx-auto p-4 space-y-6">
+
+    <!-- Navigation Tabs -->
+    <div class="flex flex-wrap bg-white p-1 rounded-xl shadow-sm border border-gray-200 text-sm font-medium gap-1">
+      <button onclick="switchTab('punch')" id="tab-punch" class="flex-1 min-w-[70px] py-2 rounded-lg bg-indigo-600 text-white font-semibold transition text-center">
+        <span id="punchTabLabel">Punch</span>
+      </button>
+      <button onclick="switchTab('leave')" id="tab-leave" class="flex-1 min-w-[85px] py-2 rounded-lg text-gray-600 hover:text-indigo-600 transition text-center">
+        <span id="leaveTabLabel">Apply Leave</span>
+      </button>
+      <button onclick="switchTab('holidays')" id="tab-holidays" class="flex-1 min-w-[75px] py-2 rounded-lg text-gray-600 hover:text-indigo-600 transition text-center">
+        Holidays & Calendar
+      </button>
+      <button onclick="switchTab('dashboard')" id="tab-dashboard" class="flex-1 min-w-[90px] py-2 rounded-lg text-gray-600 hover:text-indigo-600 transition text-center">
+        Dashboard
+      </button>
+      <button onclick="switchTab('payroll')" id="payroll-tab-btn" class="owner-only hidden flex-1 min-w-[90px] py-2 rounded-lg text-gray-600 hover:text-indigo-600 transition text-center">
+        Payroll
+      </button>
+      <button onclick="switchTab('staff')" id="staff-tab-btn" class="manager-owner-only hidden flex-1 min-w-[85px] py-2 rounded-lg text-gray-600 hover:text-indigo-600 transition text-center">
+        Staff
+      </button>
+    </div>
+
+    <!-- TAB 1: PUNCH ATTENDANCE / OWNER LIVE ATTENDANCE VIEW -->
+    <div id="view-punch" class="space-y-4">
+      <div id="employeePunchSection" class="space-y-4">
+        <div class="bg-white p-6 rounded-2xl shadow-sm border border-gray-100">
+          <h2 class="text-lg font-bold text-gray-800 mb-4 flex items-center gap-2">
+            <i data-lucide="user-check" class="w-5 h-5 text-indigo-600"></i>
+            Record Daily Punch (Max Once IN & Once OUT per day)
+          </h2>
+          <div class="space-y-4">
+            <div>
+              <label class="block text-xs font-semibold text-gray-500 uppercase mb-1">Select Your Name</label>
+              <select id="employeeSelect" class="w-full p-3 bg-gray-50 border border-gray-300 rounded-xl focus:ring-2 focus:ring-indigo-500 focus:outline-none">
+              </select>
+            </div>
+            <div class="bg-indigo-50 p-4 rounded-xl border border-indigo-100 flex items-center justify-between">
+              <div class="text-xs text-indigo-800">
+                <span class="font-semibold block">Office Shift Hours</span>
+                <span>Start: 9:45 AM (Late after 10:15 AM) | End: 6:15 PM</span>
+              </div>
+              <div id="timeDisplay" class="text-lg font-bold text-indigo-900">--:--:--</div>
+            </div>
+            <div class="grid grid-cols-2 gap-4 pt-2">
+              <button id="punchInBtn" onclick="recordPunch('IN')" class="bg-emerald-600 hover:bg-emerald-700 text-white font-bold py-4 rounded-xl shadow-md transition flex flex-col items-center justify-center gap-1 active:scale-95">
+                <i data-lucide="log-in" class="w-6 h-6"></i>
+                <span>PUNCH IN</span>
+                <span class="text-[10px] font-normal opacity-80">(Once per day)</span>
+              </button>
+              <button id="punchOutBtn" onclick="recordPunch('OUT')" class="bg-rose-600 hover:bg-rose-700 text-white font-bold py-4 rounded-xl shadow-md transition flex flex-col items-center justify-center gap-1 active:scale-95">
+                <i data-lucide="log-out" class="w-6 h-6"></i>
+                <span>PUNCH OUT</span>
+                <span class="text-[10px] font-normal opacity-80">(Once per day)</span>
+              </button>
+            </div>
+          </div>
+        </div>
+        <div class="bg-white p-4 rounded-2xl shadow-sm border border-gray-100 flex items-center gap-3">
+          <div class="p-3 bg-indigo-50 rounded-xl text-indigo-600"><i data-lucide="navigation" class="w-6 h-6"></i></div>
+          <div class="text-xs">
+            <p class="font-semibold text-gray-700">GPS Geofence Status</p>
+            <p id="gpsStatus" class="text-gray-500">Please log in to record punches within 200m.</p>
+          </div>
+        </div>
+      </div>
+
+      <div id="ownerLiveAttendanceSection" class="hidden space-y-4">
+        <div class="bg-white p-6 rounded-2xl shadow-sm border border-gray-100">
+          <div class="flex justify-between items-center mb-4">
+            <div>
+              <h2 class="text-lg font-bold text-gray-800 flex items-center gap-2">
+                <i data-lucide="users" class="w-5 h-5 text-indigo-600"></i>
+                Today's Live Staff Attendance Status
+              </h2>
+              <p class="text-xs text-gray-500" id="currentDateDisplay">Date: --</p>
+            </div>
+            <input type="date" id="ownerLiveDate" onchange="renderOwnerLiveAttendance()" class="p-2 border border-gray-300 rounded-xl text-xs bg-gray-50">
+          </div>
+          <div id="ownerLiveAttendanceContainer" class="space-y-3"></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- TAB 2: LEAVE MANAGEMENT -->
+    <div id="view-leave" class="hidden space-y-4">
+      <div id="leaveApplyCard" class="bg-white p-6 rounded-2xl shadow-sm border border-gray-100 space-y-4">
+        <h2 class="text-lg font-bold text-gray-800 flex items-center gap-2">
+          <i data-lucide="calendar-plus" class="w-5 h-5 text-indigo-600"></i>
+          Apply for Leave
+        </h2>
+        <div>
+          <label class="block text-xs font-semibold text-gray-500 uppercase mb-1">Select Employee</label>
+          <select id="leaveEmployeeSelect" class="w-full p-3 bg-gray-50 border border-gray-300 rounded-xl text-sm"></select>
+        </div>
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-3">
+          <div>
+            <label class="block text-xs font-semibold text-gray-500 uppercase mb-1">Start Date</label>
+            <input type="date" id="leaveStartDate" onchange="syncHalfDayDates()" class="w-full p-3 bg-gray-50 border border-gray-300 rounded-xl text-sm">
+          </div>
+          <div>
+            <label class="block text-xs font-semibold text-gray-500 uppercase mb-1">End Date</label>
+            <input type="date" id="leaveEndDate" class="w-full p-3 bg-gray-50 border border-gray-300 rounded-xl text-sm">
+          </div>
+        </div>
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-3">
+          <div>
+            <label class="block text-xs font-semibold text-gray-500 uppercase mb-1">Leave Type</label>
+            <select id="leaveType" onchange="syncHalfDayDates()" class="w-full p-3 bg-gray-50 border border-gray-300 rounded-xl text-sm">
+              <option value="Paid Leave">Paid Leave</option>
+              <option value="Unpaid Leave">Unpaid Leave</option>
+              <option value="Half Day Leave">Half Day Leave</option>
+            </select>
+          </div>
+          <div id="halfDaySessionWrapper" class="hidden">
+            <label class="block text-xs font-semibold text-gray-500 uppercase mb-1">Half Day Session</label>
+            <select id="halfDaySession" class="w-full p-3 bg-gray-50 border border-gray-300 rounded-xl text-sm">
+              <option value="First Half (9:45 AM – 2:00 PM)">First Half (9:45 AM – 2:00 PM)</option>
+              <option value="Second Half (2:00 PM – 6:15 PM)">Second Half (2:00 PM – 6:15 PM)</option>
+            </select>
+          </div>
+        </div>
+        <div>
+          <label class="block text-xs font-semibold text-gray-500 uppercase mb-1">Reason for Leave</label>
+          <textarea id="leaveReason" rows="3" placeholder="Enter reason..." class="w-full p-3 bg-gray-50 border border-gray-300 rounded-xl text-sm"></textarea>
+        </div>
+        <button id="submitLeaveBtn" onclick="submitLeave()" class="w-full bg-indigo-600 text-white font-bold py-3 rounded-xl hover:bg-indigo-700 transition">
+          Submit Leave Request
+        </button>
+      </div>
+
+      <div class="bg-white p-6 rounded-2xl shadow-sm border border-gray-100">
+        <h2 id="leaveListTitle" class="text-lg font-bold text-gray-800 mb-3">Leave Requests Status</h2>
+        <div id="leaveListContainer" class="space-y-3"></div>
+      </div>
+    </div>
+
+    <!-- TAB 3: HOLIDAYS & CALENDAR -->
+    <div id="view-holidays" class="hidden space-y-4">
+      <div id="addHolidayCard" class="owner-only hidden bg-white p-6 rounded-2xl shadow-sm border border-gray-100 space-y-4">
+        <h2 class="text-lg font-bold text-gray-800 flex items-center gap-2"><i data-lucide="calendar" class="w-5 h-5 text-indigo-600"></i> Add Holiday (Owner Control)</h2>
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-3">
+          <input type="text" id="holidayName" placeholder="Holiday Title" class="p-3 bg-gray-50 border border-gray-300 rounded-xl text-sm">
+          <input type="date" id="holidayDate" class="p-3 bg-gray-50 border border-gray-300 rounded-xl text-sm">
+        </div>
+        <button id="addHolidayBtn" onclick="addHoliday()" class="w-full bg-indigo-600 text-white font-bold py-3 rounded-xl hover:bg-indigo-700 transition">Add Holiday</button>
+      </div>
+
+      <!-- Interactive Leave & Holiday Calendar -->
+      <div class="bg-white p-6 rounded-2xl shadow-sm border border-gray-100 space-y-4">
+        <div class="flex flex-wrap justify-between items-center gap-2">
+          <div>
+            <h2 class="text-lg font-bold text-gray-800 flex items-center gap-2">
+              <i data-lucide="calendar-range" class="w-5 h-5 text-indigo-600"></i>
+              <span id="calendarHeading">Holiday & Leave Calendar</span>
+            </h2>
+            <p class="text-xs text-gray-500" id="calendarSubtitle">Log in to view holidays and leave schedules on the calendar.</p>
+          </div>
+          <div class="flex items-center gap-2">
+            <button onclick="changeCalendarMonth(-1)" class="px-3 py-1.5 bg-gray-100 hover:bg-gray-200 rounded-lg text-xs font-bold">◀ Prev</button>
+            <input type="month" id="calendarMonthPicker" onchange="renderHolidayLeaveCalendar()" class="p-2 border border-gray-300 rounded-lg text-xs bg-gray-50 font-semibold">
+            <button onclick="changeCalendarMonth(1)" class="px-3 py-1.5 bg-gray-100 hover:bg-gray-200 rounded-lg text-xs font-bold">Next ▶</button>
+          </div>
+        </div>
+
+        <div class="flex flex-wrap gap-3 text-xs">
+          <span class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-amber-100 text-amber-800 font-semibold">
+            <span class="w-2.5 h-2.5 rounded-full bg-amber-500"></span> Company Holiday
+          </span>
+          <span class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-indigo-100 text-indigo-800 font-semibold">
+            <span class="w-2.5 h-2.5 rounded-full bg-indigo-600"></span> Leave Request
+          </span>
+        </div>
+
+        <div class="grid grid-cols-7 gap-1 text-center text-[11px] font-bold text-gray-500 uppercase pt-1">
+          <div>Sun</div><div>Mon</div><div>Tue</div><div>Wed</div><div>Thu</div><div>Fri</div><div>Sat</div>
+        </div>
+        <div id="calendarGrid" class="grid grid-cols-7 gap-1.5 text-xs"></div>
+      </div>
+
+      <div class="bg-white p-6 rounded-2xl shadow-sm border border-gray-100">
+        <h2 class="text-lg font-bold text-gray-800 mb-3 flex items-center gap-2"><i data-lucide="calendar-days" class="w-5 h-5 text-indigo-600"></i> Company Holiday List</h2>
+        <div id="holidayListContainer" class="space-y-3"></div>
+      </div>
+    </div>
+
+    <!-- TAB 4: DASHBOARD -->
+    <div id="view-dashboard" class="hidden space-y-4">
+      <div id="ownerEmpSelectCard" class="manager-owner-only hidden bg-white p-4 rounded-2xl shadow-sm border border-gray-200">
+        <label class="block text-xs font-bold text-indigo-700 uppercase mb-1">Select Staff Member to View Logs</label>
+        <select id="ownerDashboardSelect" onchange="renderMyDashboard()" class="w-full p-3 bg-indigo-50 border border-indigo-200 rounded-xl text-sm font-semibold text-indigo-900 focus:outline-none"></select>
+      </div>
+
+      <div id="myPayslipCard" class="bg-indigo-900 text-white p-6 rounded-2xl shadow-md space-y-3">
+        <div class="flex justify-between items-center">
+          <div>
+            <p class="text-xs text-indigo-200 uppercase font-semibold">Monthly Attendance & Payslip Summary</p>
+            <h3 id="myEmpName" class="text-xl font-bold">--</h3>
+          </div>
+          <input type="month" id="myPayslipMonth" onchange="renderMyDashboard()" class="bg-indigo-800 border border-indigo-600 text-white text-xs rounded-lg p-2">
+        </div>
+        <div class="grid grid-cols-2 md:grid-cols-4 gap-3 pt-2">
+          <div class="bg-indigo-800 p-3 rounded-xl"><p class="text-[10px] text-indigo-300">Days Worked</p><p id="myPresents" class="text-lg font-bold text-emerald-400">0 d</p></div>
+          <div class="bg-indigo-800 p-3 rounded-xl"><p class="text-[10px] text-indigo-300">Approved Leaves</p><p id="myLeaves" class="text-lg font-bold text-indigo-300">0 d</p></div>
+          <div class="bg-indigo-800 p-3 rounded-xl"><p class="text-[10px] text-indigo-300">Late Days</p><p id="myLates" class="text-lg font-bold text-rose-400">0</p></div>
+          <div class="bg-indigo-800 p-3 rounded-xl"><p class="text-[10px] text-indigo-300">Net Salary</p><p id="myNetSalary" class="text-lg font-bold text-yellow-300">₹0</p></div>
+        </div>
+      </div>
+
+      <!-- Associate Password Change Card -->
+      <div id="associatePasswordCard" class="hidden bg-white p-6 rounded-2xl shadow-sm border border-gray-100 space-y-3">
+        <h2 class="text-base font-bold text-gray-800 flex items-center gap-2">
+          <i data-lucide="key-round" class="w-4 h-4 text-indigo-600"></i>
+          Change My Password
+        </h2>
+        <div class="grid grid-cols-1 md:grid-cols-3 gap-3">
+          <input type="password" id="currentPasswordInput" placeholder="Current Password" class="p-3 bg-gray-50 border border-gray-300 rounded-xl text-sm">
+          <input type="password" id="newPasswordInput" placeholder="New Password (min 4 chars)" class="p-3 bg-gray-50 border border-gray-300 rounded-xl text-sm">
+          <button id="changePasswordBtn" onclick="changeAssociatePassword()" class="bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-3 px-4 rounded-xl text-sm transition">
+            Update Password
+          </button>
+        </div>
+      </div>
+
+      <div class="flex justify-between items-center">
+        <h2 class="text-lg font-bold text-gray-800">Punch Logs</h2>
+        <button onclick="exportCSV()" class="manager-owner-only hidden bg-emerald-600 text-white text-xs px-3 py-2 rounded-lg font-semibold flex items-center gap-1 hover:bg-emerald-700">Export CSV</button>
+      </div>
+      <div id="logsContainer" class="space-y-3"></div>
+    </div>
+
+    <!-- TAB 5: PAYROLL -->
+    <div id="view-payroll" class="hidden space-y-4">
+      <div class="bg-white p-6 rounded-2xl shadow-sm border border-gray-100">
+        <div class="flex justify-between items-center mb-4">
+          <h2 class="text-lg font-bold text-gray-800">Master Staff Payroll (Owner View)</h2>
+          <input type="month" id="payrollMonth" class="p-2 border rounded-lg text-xs" onchange="calculateMasterPayroll()">
+        </div>
+        <div id="payrollTableContainer" class="overflow-x-auto"></div>
+      </div>
+    </div>
+
+    <!-- TAB 6: STAFF -->
+    <div id="view-staff" class="hidden space-y-6">
+      <div id="addStaffCard" class="owner-only hidden bg-white p-6 rounded-2xl shadow-sm border border-gray-100">
+        <h2 class="text-lg font-bold text-gray-800 mb-4">Add Staff Member</h2>
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-3">
+          <input type="text" id="newName" placeholder="Full Name" class="p-3 bg-gray-50 border border-gray-300 rounded-xl text-sm">
+          <input type="text" id="newRole" placeholder="Role" class="p-3 bg-gray-50 border border-gray-300 rounded-xl text-sm">
+          <input type="tel" id="newPhone" placeholder="Mobile Number" class="p-3 bg-gray-50 border border-gray-300 rounded-xl text-sm">
+          <input type="number" id="newMonthlySalary" placeholder="Monthly Salary (₹)" class="p-3 bg-gray-50 border border-gray-300 rounded-xl text-sm">
+          <button id="addStaffBtn" onclick="addEmployee()" class="md:col-span-2 bg-indigo-600 text-white font-bold py-3 rounded-xl hover:bg-indigo-700 transition">Save Employee</button>
+        </div>
+      </div>
+      <div class="bg-white p-6 rounded-2xl shadow-sm border border-gray-100">
+        <div class="flex justify-between items-center mb-3">
+          <h2 class="text-lg font-bold text-gray-800">Staff Roster</h2>
+          <button id="cleanupDuplicatesBtn" onclick="cleanupDuplicateStaff()" class="owner-only hidden bg-amber-100 hover:bg-amber-200 text-amber-800 text-xs px-3 py-1.5 rounded-lg font-semibold">
+            Clean Duplicate Staff
+          </button>
+        </div>
+        <div id="staffList" class="divide-y divide-gray-100"></div>
+      </div>
+    </div>
+  </main>
+
+  <script>
+    const firebaseConfig = {
+      apiKey: "AIzaSyBcj-V9Qs8nHQ2HLT9wn7ihH9BuEAsldjw",
+      authDomain: "oraneattendance.firebaseapp.com",
+      projectId: "oraneattendance",
+      storageBucket: "oraneattendance.firebasestorage.app",
+      messagingSenderId: "577661953087",
+      appId: "1:577661953087:web:04716f53d16625fb3b848a",
+      measurementId: "G-E2SJ68HHN9"
+    };
+
+    firebase.initializeApp(firebaseConfig);
+    const db = firebase.firestore();
+
+    const OFFICE_LAT = 25.609583;
+    const OFFICE_LNG = 85.139000;
+    const ALLOWED_RADIUS_METERS = 200;
+    const SESSION_STORAGE_KEY = "orane_daily_session_v1";
+
+    const OWNERS = {
+      "9741538867": { name: "Rajesh Rahul", pass: "29140" },
+      "9901192299": { name: "Rajesh Rahul", pass: "29140" },
+      "9343106810": { name: "Sarita Kumari", pass: "29140" }
+    };
+
+    let currentUser = null;
+    let employees = [];
+    let records = [];
+    let leaves = [];
+    let holidays = [];
+    let seededDefaults = { employees: false, holidays: false };
+
+    const defaultEmployees = [
+      { id: 1, name: "Aditya Prasad", role: "Manager", phone: "9717676381", monthlySalary: 37000, active: true, password: "1234" },
+      { id: 2, name: "Deep Lakshmi", role: "Makeup Trainer", phone: "8092435280", monthlySalary: 21000, active: true, password: "1234" },
+      { id: 3, name: "Bhumi", role: "Hair Trainer", phone: "8081551382", monthlySalary: 21000, active: true, password: "1234" },
+      { id: 4, name: "Gopal", role: "Nail / Mehandi Trainer", phone: "6394042455", monthlySalary: 19000, active: true, password: "1234" },
+      { id: 5, name: "Tannu Kumari", role: "Front Desk Executive", phone: "7643960428", monthlySalary: 10000, active: true, password: "1234" },
+      { id: 6, name: "Komal", role: "Housekeeping", phone: "7042054469", monthlySalary: 8000, active: true, password: "1234" }
+    ];
+
+    const defaultHolidays = [
+      { id: 1, name: "Diwali Holiday", date: "2026-11-07" },
+      { id: 2, name: "Chhath Puja Holiday", date: "2026-11-14" },
+      { id: 3, name: "Chhath Puja Holiday", date: "2026-11-16" },
+      { id: 4, name: "Christmas Day", date: "2026-12-25" }
+    ];
+
+    const currentLocalDateStr = new Date().toLocaleDateString('en-CA');
+    if (document.getElementById('payrollMonth')) document.getElementById('payrollMonth').value = currentLocalDateStr.slice(0, 7);
+    if (document.getElementById('myPayslipMonth')) document.getElementById('myPayslipMonth').value = currentLocalDateStr.slice(0, 7);
+    if (document.getElementById('ownerLiveDate')) document.getElementById('ownerLiveDate').value = currentLocalDateStr;
+    if (document.getElementById('calendarMonthPicker')) document.getElementById('calendarMonthPicker').value = currentLocalDateStr.slice(0, 7);
+    if (document.getElementById('currentDateDisplay')) document.getElementById('currentDateDisplay').innerText = `Date: ${currentLocalDateStr}`;
+
+    setInterval(() => {
+      const timeDisplay = document.getElementById('timeDisplay');
+      if (timeDisplay) timeDisplay.innerText = new Date().toLocaleTimeString();
+    }, 1000);
+
+    function getUniqueEmployees(list) {
+      const seen = new Set();
+      return list.filter(emp => {
+        const key = `${(emp.phone || '').trim()}__${(emp.name || '').trim().toLowerCase()}`;
+        if (seen.has(key)) return false;
+        seen.add(key);
+        return true;
+      });
+    }
+
+    function getLeaveDaysCount(leave) {
+      if (leave.type === 'Half Day Leave' || leave.isHalfDay) return 0.5;
+      const start = new Date(leave.startDate + 'T00:00:00');
+      const end = new Date((leave.endDate || leave.startDate) + 'T00:00:00');
+      if (isNaN(start) || isNaN(end) || end < start) return 1;
+      return Math.floor((end - start) / (1000 * 60 * 60 * 24)) + 1;
+    }
+
+    function getLeaveDatesArray(leave) {
+      if (leave.type === 'Half Day Leave' || leave.isHalfDay) {
+        return [leave.startDate].filter(Boolean);
+      }
+      const dates = [];
+      const start = new Date(leave.startDate + 'T00:00:00');
+      const end = new Date((leave.endDate || leave.startDate) + 'T00:00:00');
+      if (isNaN(start) || isNaN(end)) return [leave.startDate].filter(Boolean);
+      const curr = new Date(start);
+      while (curr <= end && dates.length < 62) {
+        dates.push(curr.toLocaleDateString('en-CA'));
+        curr.setDate(curr.getDate() + 1);
+      }
+      return dates;
+    }
+
+    function syncHalfDayDates() {
+      const leaveType = document.getElementById('leaveType')?.value;
+      const startInput = document.getElementById('leaveStartDate');
+      const endInput = document.getElementById('leaveEndDate');
+      const sessionWrapper = document.getElementById('halfDaySessionWrapper');
+
+      if (leaveType === 'Half Day Leave') {
+        if (sessionWrapper) sessionWrapper.classList.remove('hidden');
+        if (startInput && endInput && startInput.value) {
+          endInput.value = startInput.value;
+          endInput.readOnly = true;
+        }
+      } else {
+        if (sessionWrapper) sessionWrapper.classList.add('hidden');
+        if (endInput) endInput.readOnly = false;
+      }
+    }
+
+    function restoreDailySession() {
+      try {
+        const raw = localStorage.getItem(SESSION_STORAGE_KEY);
+        if (!raw) return false;
+        const parsed = JSON.parse(raw);
+        const todayStr = new Date().toLocaleDateString('en-CA');
+        if (parsed && parsed.sessionDate === todayStr && parsed.user) {
+          currentUser = parsed.user;
+          return true;
+        }
+        localStorage.removeItem(SESSION_STORAGE_KEY);
+      } catch (e) {
+        localStorage.removeItem(SESSION_STORAGE_KEY);
+      }
+      return false;
+    }
+
+    function saveDailySession(userObj) {
+      const todayStr = new Date().toLocaleDateString('en-CA');
+      localStorage.setItem(SESSION_STORAGE_KEY, JSON.stringify({
+        sessionDate: todayStr,
+        user: userObj
+      }));
+    }
+
+    function initFirebaseSync() {
+      db.collection("employees").onSnapshot(snapshot => {
+        const rawEmps = snapshot.docs.map(doc => ({ ...doc.data(), firebaseId: doc.id }));
+        if (rawEmps.length === 0 && !seededDefaults.employees) {
+          seededDefaults.employees = true;
+          defaultEmployees.forEach(e => db.collection("employees").add(e));
+          return;
+        }
+        employees = getUniqueEmployees(rawEmps);
+
+        if (currentUser && currentUser.type === 'employee') {
+          const matchedEmp = employees.find(e => e.phone === currentUser.phone || e.id == currentUser.empId);
+          if (matchedEmp) {
+            currentUser.empId = matchedEmp.id;
+            currentUser.name = matchedEmp.name;
+            saveDailySession(currentUser);
+          }
+        }
+
+        renderDropdowns();
+        renderStaffList();
+        renderMyDashboard();
+        renderHolidayLeaveCalendar();
+      });
+
+      db.collection("records").onSnapshot(snapshot => {
+        records = snapshot.docs.map(doc => ({ ...doc.data(), firebaseId: doc.id }));
+        renderOwnerLiveAttendance();
+        renderMyDashboard();
+        renderPunchLogs();
+        calculateMasterPayroll();
+      });
+
+      db.collection("leaves").onSnapshot(snapshot => {
+        leaves = snapshot.docs.map(doc => ({ ...doc.data(), firebaseId: doc.id }));
+        renderLeaves();
+        calculateMasterPayroll();
+        renderMyDashboard();
+        renderHolidayLeaveCalendar();
+      });
+
+      db.collection("holidays").onSnapshot(snapshot => {
+        holidays = snapshot.docs.map(doc => ({ ...doc.data(), firebaseId: doc.id }));
+        if (holidays.length === 0 && !seededDefaults.holidays) {
+          seededDefaults.holidays = true;
+          defaultHolidays.forEach(h => db.collection("holidays").add(h));
+        } else {
+          renderHolidays();
+          renderHolidayLeaveCalendar();
+        }
+      });
+    }
+
+    function init() {
+      const restored = restoreDailySession();
+      setAppEditable(restored);
+      initFirebaseSync();
+      if (restored && currentUser) {
+        applyLoginState(true);
+      } else {
+        renderHolidayLeaveCalendar();
+      }
+      lucide.createIcons();
+    }
+
+    function setAppEditable(isEditable) {
+      document.querySelectorAll('input, select, textarea').forEach(input => {
+        if (input.id !== 'roleBadge') input.disabled = !isEditable;
+      });
+      ['punchInBtn', 'punchOutBtn', 'submitLeaveBtn', 'addHolidayBtn', 'addStaffBtn', 'changePasswordBtn'].forEach(id => {
+        const btn = document.getElementById(id);
+        if (btn) {
+          btn.disabled = !isEditable;
+          btn.style.opacity = isEditable ? "1" : "0.5";
+        }
+      });
+    }
+
+    function openLoginModal() {
+      const todayStr = new Date().toLocaleDateString('en-CA');
+      const existingRaw = localStorage.getItem(SESSION_STORAGE_KEY);
+      if (existingRaw) {
+        try {
+          const parsed = JSON.parse(existingRaw);
+          if (parsed.sessionDate === todayStr && parsed.user) {
+            currentUser = parsed.user;
+            applyLoginState(true);
+            alert(`Already logged in for today (${todayStr}) as ${currentUser.name}.`);
+            return;
+          }
+        } catch (e) {}
+      }
+
+      const phoneInput = prompt("Enter Mobile Number (Owner or Employee):");
+      if (!phoneInput) return;
+      const cleanPhone = phoneInput.trim();
+
+      if (OWNERS[cleanPhone]) {
+        const passInput = prompt("Enter Owner Security Password:");
+        if (passInput && passInput.trim() === OWNERS[cleanPhone].pass) {
+          currentUser = { type: 'owner', name: OWNERS[cleanPhone].name, phone: cleanPhone };
+          saveDailySession(currentUser);
+          applyLoginState(false);
+          alert(`Welcome back, ${currentUser.name}! Logged in for today.`);
+        } else {
+          alert("Access Denied: Incorrect Password.");
+        }
+        return;
+      }
+
+      const emp = employees.find(e => e.phone === cleanPhone);
+      if (emp) {
+        const passInput = prompt(`Enter Password for ${emp.name}:`);
+        if (passInput && passInput.trim() === (emp.password || "1234")) {
+          currentUser = { type: 'employee', name: emp.name, phone: cleanPhone, empId: emp.id };
+          saveDailySession(currentUser);
+          applyLoginState(false);
+          alert(`Successfully logged in as ${emp.name} for today!`);
+        } else {
+          alert("Incorrect password.");
+        }
+        return;
+      }
+      alert("Mobile number not registered.");
+    }
+
+    function applyLoginState(isSilent = false) {
+      if (!currentUser) return;
+      document.getElementById('roleBadge').innerText = currentUser.type === 'owner' ? `🔓 Owner: ${currentUser.name}` : `👤 ${currentUser.name}`;
+      document.getElementById('logoutBtn').classList.remove('hidden');
+      setAppEditable(true);
+
+      const isAditya = currentUser.name.toLowerCase().includes("aditya");
+
+      if (currentUser.type === 'owner') {
+        document.querySelectorAll('.owner-only, .manager-owner-only').forEach(el => el.classList.remove('hidden'));
+        document.getElementById('punchTabLabel').innerText = "Live Attendance";
+        document.getElementById('employeePunchSection').classList.add('hidden');
+        document.getElementById('ownerLiveAttendanceSection').classList.remove('hidden');
+        document.getElementById('leaveTabLabel').innerText = "Approve Leave";
+        document.getElementById('leaveApplyCard').classList.add('hidden');
+        document.getElementById('leaveListTitle').innerText = "Pending & Recent Staff Leave Requests";
+        document.getElementById('addStaffCard').classList.remove('hidden');
+        document.getElementById('associatePasswordCard').classList.add('hidden');
+        renderOwnerLiveAttendance();
+        calculateMasterPayroll();
+      } else {
+        if (isAditya) {
+          document.querySelectorAll('.manager-owner-only').forEach(el => el.classList.remove('hidden'));
+          document.getElementById('myPayslipCard').classList.add('hidden');
+          document.getElementById('addStaffCard').classList.add('hidden');
+          document.getElementById('cleanupDuplicatesBtn')?.classList.add('hidden');
+        } else {
+          document.querySelectorAll('.manager-owner-only').forEach(el => el.classList.add('hidden'));
+          document.getElementById('myPayslipCard').classList.remove('hidden');
+        }
+        document.querySelectorAll('.owner-only').forEach(el => el.classList.add('hidden'));
+        document.getElementById('associatePasswordCard').classList.remove('hidden');
+        document.getElementById('punchTabLabel').innerText = "Punch";
+        document.getElementById('employeePunchSection').classList.remove('hidden');
+        document.getElementById('ownerLiveAttendanceSection').classList.add('hidden');
+        document.getElementById('leaveTabLabel').innerText = "Apply Leave";
+        document.getElementById('leaveApplyCard').classList.remove('hidden');
+        document.getElementById('leaveListTitle').innerText = "Leave Requests Status";
+      }
+      renderDropdowns();
+      renderMyDashboard();
+      renderLeaves();
+      renderStaffList();
+      renderHolidayLeaveCalendar();
+      if (!isSilent) lucide.createIcons();
+    }
+
+    function logoutSession() {
+      currentUser = null;
+      localStorage.removeItem(SESSION_STORAGE_KEY);
+      document.getElementById('roleBadge').innerText = "🔒 Login Required";
+      document.getElementById('logoutBtn').classList.add('hidden');
+      document.getElementById('associatePasswordCard').classList.add('hidden');
+      setAppEditable(false);
+      document.querySelectorAll('.owner-only, .manager-owner-only').forEach(el => el.classList.add('hidden'));
+      renderHolidayLeaveCalendar();
+      switchTab('punch');
+      alert("Logged out successfully.");
+    }
+
+    function switchTab(tab) {
+      ['punch', 'leave', 'holidays', 'dashboard', 'payroll', 'staff'].forEach(t => {
+        document.getElementById(`view-${t}`)?.classList.add('hidden');
+        const btn = document.getElementById(`tab-${t}`);
+        if (btn) btn.className = "flex-1 py-2 rounded-lg text-gray-600 hover:text-indigo-600 transition text-center";
+      });
+      document.getElementById(`view-${tab}`)?.classList.remove('hidden');
+      const targetBtn = document.getElementById(`tab-${tab}`);
+      if (targetBtn) targetBtn.className = "flex-1 py-2 rounded-lg bg-indigo-600 text-white font-semibold transition text-center";
+      if (tab === 'holidays') renderHolidayLeaveCalendar();
+    }
+
+    function renderDropdowns() {
+      const activeEmps = employees.filter(e => e.active);
+      const empSelect = document.getElementById('employeeSelect');
+      const leaveEmpSelect = document.getElementById('leaveEmployeeSelect');
+      const ownerDashboardSelect = document.getElementById('ownerDashboardSelect');
+
+      if (currentUser && currentUser.type === 'employee') {
+        const loggedInEmp = employees.find(e => e.id == currentUser.empId || e.phone === currentUser.phone);
+        const singleOption = loggedInEmp ? `<option value="${loggedInEmp.id}">${loggedInEmp.name} (${loggedInEmp.role})</option>` : '';
+        if (empSelect) { empSelect.innerHTML = singleOption; empSelect.disabled = true; }
+        if (leaveEmpSelect) { leaveEmpSelect.innerHTML = singleOption; leaveEmpSelect.disabled = true; }
+      } else {
+        const optionsHTML = activeEmps.map(e => `<option value="${e.id}">${e.name} (${e.role})</option>`).join('');
+        if (empSelect) { empSelect.innerHTML = optionsHTML; empSelect.disabled = false; }
+        if (leaveEmpSelect) { leaveEmpSelect.innerHTML = optionsHTML; leaveEmpSelect.disabled = false; }
+        if (ownerDashboardSelect) { ownerDashboardSelect.innerHTML = optionsHTML; }
+      }
+    }
+
+    function recordPunch(type) {
+      if (!currentUser) return alert("Please log in first!");
+      const empSelect = document.getElementById('employeeSelect');
+      const empId = currentUser.type === 'employee' ? currentUser.empId : empSelect.value;
+      const emp = employees.find(e => e.id == empId);
+      if (!emp) return alert("Select an employee!");
+
+      navigator.geolocation.getCurrentPosition((position) => {
+        const now = new Date();
+        const todayStr = now.toLocaleDateString('en-CA');
+
+        const existingPunchesToday = records.filter(r => r.empId == emp.id && r.date === todayStr);
+        const alreadyIn = existingPunchesToday.some(r => r.type === 'IN');
+        const alreadyOut = existingPunchesToday.some(r => r.type === 'OUT');
+
+        if (type === 'IN' && alreadyIn) {
+          return alert("❌ You have already punched IN for today. Only one Punch IN is allowed per day.");
+        }
+        if (type === 'OUT' && alreadyOut) {
+          return alert("❌ You have already punched OUT for today. Only one Punch OUT is allowed per day.");
+        }
+
+        const record = {
+          id: Date.now(),
+          empId: emp.id,
+          empName: emp.name,
+          empRole: emp.role,
+          type: type,
+          time: now.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+          date: todayStr,
+          isLate: type === 'IN' && (now.getHours() > 10 || (now.getHours() === 10 && now.getMinutes() > 15)),
+          mapUrl: `https://www.google.com/maps?q=${position.coords.latitude},${position.coords.longitude}`
+        };
+        db.collection("records").add(record);
+        alert(`Punched ${type} successfully!`);
+      }, () => alert("GPS location access required."), { enableHighAccuracy: true });
+    }
+
+    function submitLeave() {
+      if (!currentUser) return alert("Please log in first!");
+      const empId = currentUser.type === 'employee' ? currentUser.empId : document.getElementById('leaveEmployeeSelect').value;
+      const emp = employees.find(e => e.id == empId);
+      const type = document.getElementById('leaveType').value;
+      const startDate = document.getElementById('leaveStartDate').value;
+      const endDate = type === 'Half Day Leave' ? startDate : (document.getElementById('leaveEndDate').value || startDate);
+      const session = type === 'Half Day Leave' ? document.getElementById('halfDaySession')?.value : '';
+      const baseReason = document.getElementById('leaveReason').value.trim();
+
+      if (!emp || !startDate || !baseReason) return alert("Please fill all leave fields.");
+      const finalReason = type === 'Half Day Leave' && session ? `${baseReason} [${session}]` : baseReason;
+
+      db.collection("leaves").add({
+        id: Date.now(),
+        empId: emp.id,
+        empName: emp.name,
+        startDate,
+        endDate,
+        type,
+        isHalfDay: type === 'Half Day Leave',
+        session,
+        reason: finalReason,
+        status: "Pending"
+      });
+
+      alert("Leave request submitted successfully!");
+      document.getElementById('leaveReason').value = "";
+    }
+
+    function updateLeaveStatus(firebaseId, status) {
+      if (!currentUser || currentUser.type !== 'owner') return;
+      db.collection("leaves").doc(firebaseId).update({ status });
+    }
+
+    function cancelLeave(firebaseId) {
+      db.collection("leaves").doc(firebaseId).delete();
+      alert("Leave request canceled.");
+    }
+
+    function renderLeaves() {
+      const container = document.getElementById('leaveListContainer');
+      if (!container) return;
+      const isOwner = currentUser && currentUser.type === 'owner';
+      const targetEmpId = currentUser && currentUser.type === 'employee' ? currentUser.empId : document.getElementById('employeeSelect')?.value;
+      
+      let displayLeaves = isOwner ? leaves : leaves.filter(l => l.empId == targetEmpId);
+
+      if (displayLeaves.length === 0) {
+        container.innerHTML = `<p class="text-xs text-gray-400">No leave requests found.</p>`;
+        return;
+      }
+
+      container.innerHTML = displayLeaves.map(l => {
+        const daysCount = getLeaveDaysCount(l);
+        let actionButtons = '';
+        if (isOwner && l.status === 'Pending') {
+          actionButtons = `<div class="flex gap-1"><button onclick="updateLeaveStatus('${l.firebaseId}', 'Approved')" class="bg-emerald-600 text-white px-2.5 py-1 rounded-lg">Approve</button><button onclick="updateLeaveStatus('${l.firebaseId}', 'Rejected')" class="bg-rose-600 text-white px-2.5 py-1 rounded-lg">Reject</button></div>`;
+        } else if (!isOwner && l.status === 'Pending' && currentUser && currentUser.empId == l.empId) {
+          actionButtons = `<button onclick="cancelLeave('${l.firebaseId}')" class="bg-rose-100 text-rose-700 px-2.5 py-1 rounded-lg font-semibold">Cancel Leave</button>`;
+        }
+        return `<div class="p-3 bg-gray-50 rounded-xl text-xs flex justify-between items-center border"><div><p class="font-bold text-gray-800">${l.empName} — ${l.type} (${daysCount} d: ${l.startDate}${l.endDate && l.endDate !== l.startDate ? ` to ${l.endDate}` : ''})</p><p class="text-gray-500">Reason: ${l.reason}</p><p class="font-semibold">Status: <span class="${l.status === 'Approved' ? 'text-emerald-600' : l.status === 'Rejected' ? 'text-rose-600' : 'text-amber-600'}">${l.status}</span></p></div>${actionButtons}</div>`;
+      }).join('');
+    }
+
+    function addHoliday() {
+      if (!currentUser || currentUser.type !== 'owner') return alert("Only Owner can add holidays.");
+      const name = document.getElementById('holidayName').value.trim();
+      const date = document.getElementById('holidayDate').value;
+      if (!name || !date) return alert("Please enter holiday title and date.");
+      db.collection("holidays").add({ id: Date.now(), name, date });
+      document.getElementById('holidayName').value = "";
+      document.getElementById('holidayDate').value = "";
+      alert("Holiday added!");
+    }
+
+    function renderHolidays() {
+      const container = document.getElementById('holidayListContainer');
+      if (!container) return;
+      container.innerHTML = holidays.map(h => `<div class="p-3 bg-gray-50 rounded-xl text-xs flex justify-between items-center border"><div><p class="font-bold text-gray-800">${h.name}</p><p class="text-indigo-600">${h.date}</p></div></div>`).join('');
+    }
+
+    function changeCalendarMonth(delta) {
+      const picker = document.getElementById('calendarMonthPicker');
+      const currentVal = picker?.value || currentLocalDateStr.slice(0, 7);
+      const [y, m] = currentVal.split('-').map(Number);
+      const d = new Date(y, (m - 1) + delta, 1);
+      const nextMonth = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
+      if (picker) picker.value = nextMonth;
+      renderHolidayLeaveCalendar();
+    }
+
+    function renderHolidayLeaveCalendar() {
+      const grid = document.getElementById('calendarGrid');
+      const heading = document.getElementById('calendarHeading');
+      const subtitle = document.getElementById('calendarSubtitle');
+      if (!grid) return;
+
+      const monthVal = document.getElementById('calendarMonthPicker')?.value || currentLocalDateStr.slice(0, 7);
+      const [year, month] = monthVal.split('-').map(Number);
+      const firstDay = new Date(year, month - 1, 1);
+      const lastDay = new Date(year, month, 0);
+      const startWeekday = firstDay.getDay();
+      const totalDays = lastDay.getDate();
+
+      const isOwner = currentUser && currentUser.type === 'owner';
+      const isAditya = currentUser && currentUser.name?.toLowerCase().includes('aditya');
+      const canSeeAllLeaves = isOwner || isAditya;
+
+      if (heading) {
+        heading.innerText = canSeeAllLeaves ? "All Associates Leave & Holiday Calendar" : "My Leave & Holiday Calendar";
+      }
+      if (subtitle) {
+        if (!currentUser) {
+          subtitle.innerText = "Showing company holidays. Log in to see leave entries.";
+        } else if (canSeeAllLeaves) {
+          subtitle.innerText = "Showing company holidays and leave requests for all associates.";
+        } else {
+          subtitle.innerText = `Showing company holidays and leave requests for ${currentUser.name}.`;
+        }
+      }
+
+      const relevantLeaves = !currentUser
+        ? []
+        : canSeeAllLeaves
+          ? leaves
+          : leaves.filter(l => l.empId == currentUser.empId);
+
+      let cells = [];
+      for (let i = 0; i < startWeekday; i++) {
+        cells.push(`<div class="min-h-[78px] bg-gray-50/60 rounded-lg border border-dashed border-gray-200"></div>`);
+      }
+
+      for (let day = 1; day <= totalDays; day++) {
+        const dateStr = `${year}-${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
+        const dayHolidays = holidays.filter(h => h.date === dateStr);
+        const dayLeaves = relevantLeaves.filter(l => getLeaveDatesArray(l).includes(dateStr));
+        const isToday = dateStr === currentLocalDateStr;
+
+        const holidayBadges = dayHolidays.map(h =>
+          `<div class="bg-amber-100 text-amber-900 px-1.5 py-0.5 rounded text-[10px] font-semibold truncate" title="${h.name}">🎉 ${h.name}</div>`
+        ).join('');
+
+        const leaveBadges = dayLeaves.map(l => {
+          const shortType = l.type === 'Half Day Leave' ? '½d' : (l.type === 'Paid Leave' ? 'Paid' : 'Unpaid');
+          return `<div class="bg-indigo-100 text-indigo-900 px-1.5 py-0.5 rounded text-[10px] font-medium truncate" title="${l.empName} - ${l.type} (${l.status})">🗓️ ${canSeeAllLeaves ? `${l.empName.split(' ')[0]} ` : ''}${shortType} (${l.status[0]})</div>`;
+        }).join('');
+
+        cells.push(`
+          <div class="min-h-[78px] p-1.5 rounded-lg border ${isToday ? 'border-indigo-500 bg-indigo-50/40' : 'border-gray-200 bg-white'} flex flex-col gap-1">
+            <div class="text-[11px] font-bold ${isToday ? 'text-indigo-700' : 'text-gray-700'}">${day}</div>
+            ${holidayBadges}
+            ${leaveBadges}
+          </div>
+        `);
+      }
+
+      grid.innerHTML = cells.join('');
+    }
+
+    function renderOwnerLiveAttendance() {
+      const container = document.getElementById('ownerLiveAttendanceContainer');
+      if (!container || !currentUser || currentUser.type !== 'owner') return;
+      const selectedDate = document.getElementById('ownerLiveDate')?.value || currentLocalDateStr;
+      const activeEmps = employees.filter(e => e.active);
+
+      container.innerHTML = activeEmps.map(emp => {
+        const empDayRecords = records.filter(r => r.empId == emp.id && r.date === selectedDate);
+        const punchIn = empDayRecords.find(r => r.type === 'IN');
+        const punchOut = empDayRecords.find(r => r.type === 'OUT');
+        return `<div class="bg-gray-50 p-4 rounded-xl border flex justify-between items-center"><div><p class="font-bold text-gray-800">${emp.name} (${emp.role})</p><p class="text-xs text-gray-500">In: ${punchIn ? punchIn.time : '--'} | Out: ${punchOut ? punchOut.time : '--'}</p></div>${punchIn ? `<a href="${punchIn.mapUrl}" target="_blank" class="text-xs text-indigo-600 underline">Map</a>` : ''}</div>`;
+      }).join('');
+    }
+
+    function renderMyDashboard() {
+      let targetEmpId = currentUser && currentUser.type === 'employee' ? currentUser.empId : document.getElementById('employeeSelect')?.value;
+      if (currentUser && (currentUser.type === 'owner' || currentUser.name?.toLowerCase().includes("aditya"))) {
+        targetEmpId = document.getElementById('ownerDashboardSelect')?.value || targetEmpId;
+      }
+      const emp = employees.find(e => e.id == targetEmpId);
+      if (!emp) return;
+
+      const monthStr = document.getElementById('myPayslipMonth')?.value || currentLocalDateStr.slice(0, 7);
+      document.getElementById('myEmpName').innerText = `${emp.name} (${emp.role})`;
+      
+      const empRecords = records.filter(r => r.empId == emp.id && r.date.startsWith(monthStr));
+      const presents = new Set(empRecords.filter(r => r.type === 'IN').map(r => r.date)).size;
+      const lates = empRecords.filter(r => r.type === 'IN' && r.isLate).length;
+      const approvedLeaves = leaves
+        .filter(l => l.empId == emp.id && l.status === 'Approved' && l.startDate.startsWith(monthStr))
+        .reduce((sum, l) => sum + getLeaveDaysCount(l), 0);
+
+      const dailyRate = (emp.monthlySalary || 0) / 30;
+      const lateDeduction = lates * (dailyRate * 0.25);
+      const netSalary = Math.max(0, Math.round(((presents + approvedLeaves) * dailyRate) - lateDeduction));
+
+      document.getElementById('myPresents').innerText = `${presents} d`;
+      document.getElementById('myLeaves').innerText = `${approvedLeaves} d`;
+      document.getElementById('myLates').innerText = lates;
+      document.getElementById('myNetSalary').innerText = `₹${netSalary.toLocaleString('en-IN')}`;
+
+      renderPunchLogs(emp.id, monthStr);
+    }
+
+    function changeAssociatePassword() {
+      if (!currentUser) return alert("Please log in first.");
+      const currentPassInput = document.getElementById('currentPasswordInput');
+      const newPassInput = document.getElementById('newPasswordInput');
+      const currentPass = currentPassInput?.value.trim() || '';
+      const newPass = newPassInput?.value.trim() || '';
+
+      if (!currentPass || !newPass) {
+        return alert("Please enter both your current password and new password.");
+      }
+      if (newPass.length < 4) {
+        return alert("New password must be at least 4 characters long.");
+      }
+
+      if (currentUser.type === 'owner') {
+        return alert("Owner passwords are managed in the owner configuration.");
+      }
+
+      const emp = employees.find(e => e.id == currentUser.empId || e.phone === currentUser.phone);
+      if (!emp) return alert("Employee profile not found.");
+
+      const storedPassword = emp.password || "1234";
+      if (currentPass !== storedPassword) {
+        return alert("❌ Current password is incorrect.");
+      }
+
+      const matchingDocs = employees.filter(e => e.phone === emp.phone && e.firebaseId);
+      if (matchingDocs.length > 0) {
+        matchingDocs.forEach(docItem => {
+          db.collection("employees").doc(docItem.firebaseId).update({ password: newPass });
+        });
+      }
+      emp.password = newPass;
+      currentPassInput.value = "";
+      newPassInput.value = "";
+      alert("✅ Password updated successfully!");
+    }
+
+    function renderPunchLogs(empId, monthStr) {
+      const logsContainer = document.getElementById('logsContainer');
+      if (!logsContainer) return;
+      if (!empId) {
+        let targetEmpId = currentUser && currentUser.type === 'employee' ? currentUser.empId : document.getElementById('employeeSelect')?.value;
+        if (currentUser && (currentUser.type === 'owner' || currentUser.name?.toLowerCase().includes("aditya"))) {
+          targetEmpId = document.getElementById('ownerDashboardSelect')?.value || targetEmpId;
+        }
+        empId = targetEmpId;
+      }
+      if (!monthStr) {
+        monthStr = document.getElementById('myPayslipMonth')?.value || currentLocalDateStr.slice(0, 7);
+      }
+
+      const empRecords = records.filter(r => r.empId == empId && r.date.startsWith(monthStr)).sort((a,b) => new Date(b.date) - new Date(a.date));
+
+      if (empRecords.length === 0) {
+        logsContainer.innerHTML = `<p class="text-xs text-gray-400">No punch logs found for this month.</p>`;
+        return;
+      }
+
+      logsContainer.innerHTML = empRecords.map(r => `
+        <div class="bg-white p-4 rounded-xl shadow-sm border flex justify-between items-center text-xs">
+          <div>
+            <p class="font-bold text-gray-800">${r.type === 'IN' ? 'Punch IN' : 'Punch OUT'} @ ${r.time}</p>
+            <p class="text-gray-500">${r.date}</p>
+          </div>
+          <div>
+            ${r.type === 'IN' ? (r.isLate ? '<span class="bg-rose-100 text-rose-700 px-2.5 py-1 rounded-full font-semibold">Late</span>' : '<span class="bg-emerald-100 text-emerald-700 px-2.5 py-1 rounded-full font-semibold">On Time</span>') : ''}
+            <a href="${r.mapUrl}" target="_blank" class="ml-2 text-indigo-600 underline font-semibold">Map</a>
+          </div>
+        </div>
+      `).join('');
+    }
+
+    function calculateMasterPayroll() {
+      const container = document.getElementById('payrollTableContainer');
+      if (!container || !currentUser || currentUser.type !== 'owner') return;
+      const monthStr = document.getElementById('payrollMonth')?.value || currentLocalDateStr.slice(0, 7);
+
+      const rows = employees.map(emp => {
+        const empRecords = records.filter(r => r.empId == emp.id && r.date.startsWith(monthStr));
+        const presents = new Set(empRecords.filter(r => r.type === 'IN').map(r => r.date)).size;
+        const lates = empRecords.filter(r => r.type === 'IN' && r.isLate).length;
+        const approvedLeaves = leaves
+          .filter(l => l.empId == emp.id && l.status === 'Approved' && l.startDate.startsWith(monthStr))
+          .reduce((sum, l) => sum + getLeaveDaysCount(l), 0);
+        const dailyRate = emp.monthlySalary / 30;
+        const lateDeduction = lates * (dailyRate * 0.25);
+        const netSalary = Math.max(0, Math.round(((presents + approvedLeaves) * dailyRate) - lateDeduction));
+
+        return `
+          <tr class="border-b text-xs">
+            <td class="p-3 font-bold">${emp.name}<br><span class="text-[10px] text-gray-500">${emp.role}</span></td>
+            <td class="p-3">₹${emp.monthlySalary?.toLocaleString('en-IN')}</td>
+            <td class="p-3">${presents} d</td>
+            <td class="p-3">${approvedLeaves} d</td>
+            <td class="p-3 text-rose-600">${lates}</td>
+            <td class="p-3 font-bold text-emerald-700">₹${netSalary.toLocaleString('en-IN')}</td>
+          </tr>
+        `;
+      }).join('');
+
+      container.innerHTML = `
+        <table class="w-full text-left border-collapse">
+          <thead>
+            <tr class="bg-gray-50 text-gray-600 border-b text-xs uppercase">
+              <th class="p-3">Staff</th>
+              <th class="p-3">Monthly</th>
+              <th class="p-3">Present</th>
+              <th class="p-3">Leave</th>
+              <th class="p-3">Lates</th>
+              <th class="p-3">Net Salary</th>
+            </tr>
+          </thead>
+          <tbody>${rows}</tbody>
+        </table>
+      `;
+    }
+
+    function renderStaffList() {
+      const container = document.getElementById('staffList');
+      if (!container) return;
+      const isOwner = currentUser && currentUser.type === 'owner';
+      const uniqueList = getUniqueEmployees(employees);
+
+      container.innerHTML = uniqueList.map(emp => `
+        <div class="py-3 flex justify-between items-center text-xs">
+          <div>
+            <p class="font-bold text-gray-800">${emp.name} <span class="text-indigo-600 font-normal">(${emp.role})</span></p>
+            <p class="text-gray-500">Phone: ${emp.phone} ${isOwner ? `| Salary: ₹${emp.monthlySalary?.toLocaleString('en-IN')}` : ''}</p>
+          </div>
+          <span class="px-2 py-1 bg-emerald-100 text-emerald-800 rounded-full font-semibold">${emp.active ? 'Active' : 'Inactive'}</span>
+        </div>
+      `).join('');
+    }
+
+    async function cleanupDuplicateStaff() {
+      if (!currentUser || currentUser.type !== 'owner') return alert("Only Owner can clean duplicate staff records.");
+      const snap = await db.collection("employees").get();
+      const seenKeys = new Set();
+      let deletedCount = 0;
+
+      for (const doc of snap.docs) {
+        const data = doc.data();
+        const key = `${(data.phone || '').trim()}__${(data.name || '').trim().toLowerCase()}`;
+        if (seenKeys.has(key)) {
+          await db.collection("employees").doc(doc.id).delete();
+          deletedCount++;
+        } else {
+          seenKeys.add(key);
+        }
+      }
+      alert(deletedCount > 0 ? `Removed ${deletedCount} duplicate staff record(s) from Firestore.` : "No duplicate staff records found.");
+    }
+
+    function addEmployee() {
+      if (!currentUser || currentUser.type !== 'owner') return alert("Only Owner can add staff.");
+      const name = document.getElementById('newName').value.trim();
+      const role = document.getElementById('newRole').value.trim();
+      const phone = document.getElementById('newPhone').value.trim();
+      const monthlySalary = parseFloat(document.getElementById('newMonthlySalary').value);
+
+      if (!name || !role || !phone || isNaN(monthlySalary)) return alert("Please fill all staff fields correctly.");
+
+      const alreadyExists = employees.some(e => e.phone === phone || e.name.trim().toLowerCase() === name.toLowerCase());
+      if (alreadyExists) return alert("An employee with this name or mobile number already exists in the roster.");
+
+      const newEmp = {
+        id: Date.now(),
+        name, role, phone, monthlySalary,
+        active: true,
+        password: "1234"
+      };
+
+      db.collection("employees").add(newEmp);
+      alert("Employee added successfully!");
+      document.getElementById('newName').value = "";
+      document.getElementById('newRole').value = "";
+      document.getElementById('newPhone').value = "";
+      document.getElementById('newMonthlySalary').value = "";
+    }
+
+    function exportCSV() {
+      let csvContent = "data:text/csv;charset=utf-8,ID,Name,Role,Type,Time,Date,Late\n";
+      records.forEach(r => {
+        csvContent += `${r.empId},"${r.empName}","${r.empRole}",${r.type},${r.time},${r.date},${r.isLate}\n`;
+      });
+      const encodedUri = encodeURI(csvContent);
+      const link = document.createElement("a");
+      link.setAttribute("href", encodedUri);
+      link.setAttribute("download", "orane_attendance_logs.csv");
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+    }
+
+    window.onload = init;
+  </script>
+</body>
+</html>
